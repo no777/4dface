@@ -1,2 +1,5 @@
 # Ignore the user-specific initial_cache file
 initial_cache.cmake
+build
+u1.png
+face_landmarks_model_rcr_68.bin

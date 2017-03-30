@@ -125,7 +125,7 @@ cv::Rect make_bbox_square(cv::Rect bounding_box)
  * @param[in] viewport Viewport to draw the mesh.
  * @param[in] colour Colour of the mesh to be drawn.
  */
-void draw_wireframe(cv::Mat image, const eos::render::Mesh& mesh, glm::mat4x4 modelview, glm::mat4x4 projection, glm::vec4 viewport, cv::Scalar colour = cv::Scalar(0, 255, 0, 255))
+void draw_wireframe(cv::Mat image, const eos::core::Mesh& mesh, glm::mat4x4 modelview, glm::mat4x4 projection, glm::vec4 viewport, cv::Scalar colour = cv::Scalar(0, 255, 0, 255))
 {
 	for (const auto& triangle : mesh.tvi)
 	{

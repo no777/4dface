@@ -43,7 +43,7 @@ set(CPACK_PACKAGE_VERSION_PATCH "${4dface_VERSION_PATCH}")
 include(CPack)
 
 # Find dependencies:
-find_package(OpenCV 2.4.3 REQUIRED core imgproc highgui objdetect) # in 3.0: require videoio? Plus the thing Michael fixed for eos?
+find_package(OpenCV REQUIRED core imgproc highgui objdetect) # in 3.0: require videoio? Plus the thing Michael fixed for eos?
 message(STATUS "OpenCV include dir found at ${OpenCV_INCLUDE_DIRS}")
 message(STATUS "OpenCV library dir found at ${OpenCV_LIB_DIR}")
 set_target_properties(${OpenCV_LIBS} PROPERTIES MAP_IMPORTED_CONFIG_RELWITHDEBINFO RELEASE)
@@ -82,7 +82,7 @@ set(superviseddescent_DIR "${CMAKE_SOURCE_DIR}/external/superviseddescent")
 
 set(eos_INCLUDE_DIR "${eos_DIR}/include")
 set(superviseddescent_INCLUDE_DIR "${superviseddescent_DIR}/include")
-set(cereal_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/eos/3rdparty/cereal-1.1.1/include")
+set(cereal_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/eos/3rdparty/cereal/include")
 set(glm_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/eos/3rdparty/glm")
 set(nanoflann_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/eos/3rdparty/nanoflann/include")
 set(eigen3_nnls_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/external/eos/3rdparty/eigen3-nnls/src")

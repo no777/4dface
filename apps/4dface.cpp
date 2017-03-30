@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
 				"full path to OpenCV's face detector (haarcascade_frontalface_alt2.xml)")
 			("landmarkdetector,l", po::value<fs::path>(&landmarkdetector)->required()->default_value("../share/face_landmarks_model_rcr_68.bin"),
 				"learned landmark detection model")
-			("mapping,p", po::value<fs::path>(&mappingsfile)->required()->default_value("../share/ibug2did.txt"),
+			("mapping,p", po::value<fs::path>(&mappingsfile)->required()->default_value("../share/ibug_to_sfm.txt"),
 				"landmark identifier to model vertex number mapping")
 			("model-contour,c", po::value<fs::path>(&contourfile)->required()->default_value("../share/model_contours.json"),
 				"file with model contour indices")
@@ -159,10 +159,15 @@ int main(int argc, char *argv[])
 	Rect current_facebox;
 	WeightedIsomapAveraging isomap_averaging(60.f); // merge all triangles that are facing <60° towards the camera
 	PcaCoefficientMerging pca_shape_merging;
+   // Mat isomap = cv::imread("current_merged.isomap.png");
+    using Eigen::VectorXf;
+    using Eigen::MatrixXf;
 
 	for (;;)
 	{
 		cap >> frame; // get a new frame from camera
+        cv::resize(frame, frame, cv::Size(frame.cols * 0.5,frame.rows * 0.5), 0, 0, CV_INTER_LINEAR);
+
 		if (frame.empty()) { // stop if we're at the end of the video
 			break;
 		}
@@ -173,7 +178,8 @@ int main(int argc, char *argv[])
 			have_face = false;
 		}
 
-		unmodified_frame = frame.clone();
+        unmodified_frame = frame.clone();
+        //cv::resize(frame, unmodified_frame, cv::Size(frame.cols * 0.5,frame.rows * 0.5), 0, 0, CV_INTER_LINEAR);
 
 		if (!have_face) {
 			// Run the face detector and obtain the initial estimate using the mean landmarks:
@@ -181,13 +187,14 @@ int main(int argc, char *argv[])
 			face_cascade.detectMultiScale(unmodified_frame, detected_faces, 1.2, 2, 0, cv::Size(110, 110));
 			if (detected_faces.empty()) {
 				cv::imshow("video", frame);
-				cv::waitKey(30);
+				//cv::waitKey(30);
 				continue;
 			}
-			cv::rectangle(frame, detected_faces[0], { 255, 0, 0 });
+            Rect detected_face = Rect(detected_faces[0].x/1,detected_faces[0].y/1,detected_faces[0].width/1,detected_faces[0].height/1);
+			cv::rectangle(frame, detected_face, { 255, 0, 0 });
 			// Rescale the V&J facebox to make it more like an ibug-facebox:
 			// (also make sure the bounding box is square, V&J's is square)
-			Rect ibug_facebox = rescale_facebox(detected_faces[0], 0.85, 0.2);
+			Rect ibug_facebox = rescale_facebox(detected_face, 0.85, 0.2);
 
 			current_landmarks = rcr_model.detect(unmodified_frame, ibug_facebox);
 			rcr::draw_landmarks(frame, current_landmarks, { 0, 0, 255 }); // red, initial landmarks
@@ -207,7 +214,7 @@ int main(int argc, char *argv[])
 		fitting::RenderingParameters rendering_params;
 		vector<float> shape_coefficients, blendshape_coefficients;
 		vector<Vec2f> image_points;
-		render::Mesh mesh;
+		core::Mesh mesh;
 		std::tie(mesh, rendering_params) = fitting::fit_shape_and_pose(morphable_model, blendshapes, rcr_to_eos_landmark_collection(current_landmarks), landmark_mapper, unmodified_frame.cols, unmodified_frame.rows, edge_topology, ibug_contour, model_contour, 3, 5, 15.0f, boost::none, shape_coefficients, blendshape_coefficients, image_points);
 
 		// Draw the 3D pose of the face:
@@ -224,8 +231,14 @@ int main(int argc, char *argv[])
 		Mat merged_isomap = isomap_averaging.add_and_merge(isomap);
 		// Same for the shape:
 		shape_coefficients = pca_shape_merging.add_and_merge(shape_coefficients);
-		auto merged_shape = morphable_model.get_shape_model().draw_sample(shape_coefficients) + morphablemodel::to_matrix(blendshapes) * Mat(blendshape_coefficients);
-		render::Mesh merged_mesh = morphablemodel::sample_to_mesh(merged_shape, morphable_model.get_color_model().get_mean(), morphable_model.get_shape_model().get_triangle_list(), morphable_model.get_color_model().get_triangle_list(), morphable_model.get_texture_coordinates());
+       
+        
+        VectorXf current_combined_shape = morphablemodel::to_matrix(blendshapes) * Eigen::Map<const Eigen::VectorXf>(blendshape_coefficients.data(), blendshape_coefficients.size());
+        
+        
+        auto merged_shape = morphable_model.get_shape_model().draw_sample(shape_coefficients) + current_combined_shape ;
+
+        core::Mesh merged_mesh = morphablemodel::sample_to_mesh(merged_shape, morphable_model.get_color_model().get_mean(), morphable_model.get_shape_model().get_triangle_list(), morphable_model.get_color_model().get_triangle_list(), morphable_model.get_texture_coordinates());
 
 		// Render the model in a separate window using the estimated pose, shape and merged texture:
 		Mat rendering;
@@ -236,7 +249,11 @@ int main(int argc, char *argv[])
 		cv::imshow("render", rendering);
 
 		cv::imshow("video", frame);
-		auto key = cv::waitKey(30);
+		int key = cv::waitKey(30);
+        if(key!=-1)
+        {
+            printf("key:%c\n",key);
+        }
 		if (key == 'q') break;
 		if (key == 'r') {
 			have_face = false;
@@ -244,8 +261,9 @@ int main(int argc, char *argv[])
 		}
 		if (key == 's') {
 			// save an obj + current merged isomap to the disk:
-			render::Mesh neutral_expression = morphablemodel::sample_to_mesh(morphable_model.get_shape_model().draw_sample(shape_coefficients), morphable_model.get_color_model().get_mean(), morphable_model.get_shape_model().get_triangle_list(), morphable_model.get_color_model().get_triangle_list(), morphable_model.get_texture_coordinates());
-			render::write_textured_obj(neutral_expression, "current_merged.obj");
+            isomap = render::extract_texture(mesh, affine_cam, unmodified_frame, true, render::TextureInterpolation::NearestNeighbour, 512);
+			core::Mesh neutral_expression = morphablemodel::sample_to_mesh(morphable_model.get_shape_model().draw_sample(shape_coefficients), morphable_model.get_color_model().get_mean(), morphable_model.get_shape_model().get_triangle_list(), morphable_model.get_color_model().get_triangle_list(), morphable_model.get_texture_coordinates());
+			core::write_textured_obj(neutral_expression, "current_merged.obj");
 			cv::imwrite("current_merged.isomap.png", merged_isomap);
 		}
 	}
